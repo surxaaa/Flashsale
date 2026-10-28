@@ -94,12 +94,3 @@ Run on an Apple Silicon Mac, Docker Desktop with 10 CPUs and 8 GB, 3 API replica
   | Mobile (slow 4G, 4× CPU slowdown) | 97 | 1.9 s | 0.6 s | 180 ms | 105 KiB |
 
   The 200 KB budget is met with room to spare. The TTI target is met on desktop and missed by 0.4 s on Lighthouse's throttled mobile profile. Almost all of the 105 KiB is the React/Next runtime (the page itself is about 2 KiB), so the options are Brotli at the CDN, Preact, or plain JS for this page. DESIGN.md has more.
-
-## Known gaps
-
-- Publishing to RabbitMQ doesn't use publisher confirms, so a message can be lost if the broker dies right after `202`. Switching to `createConfirmChannel()` would close that.
-- No dead-letter queue. Messages that can't be parsed are logged and dropped, and every other failure is acked after cleanup, so nothing loops.
-- No reconciliation job. Run `verify.sh` after each test.
-- Login is mocked: any user id gets a token.
-- Redis release is keyed by user, not order. That's fine in normal flows because a user can only hold one reservation, but an expiry job releasing old orders while `reset.sh` runs can free a unit belonging to the next run. Reset when the expiry job is idle, or key the buyers set by order id.
-- Mobile TTI is 1.9 s against the 1.5 s target (see above).
