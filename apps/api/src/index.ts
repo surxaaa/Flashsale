@@ -51,10 +51,15 @@ async function powValid(challenge?: string, nonce?: string) {
   return hash.startsWith("0".repeat(POW_DIFFICULTY));
 }
 
-app.get("/sale/status", async () => {
-  const [open, stock] = await redis.mget(KEYS.open, KEYS.stock);
-  return { open: open === "1", remaining: Number(stock ?? 0) };
-});
+// startsAt is null until the sale is scheduled; the client counts down to it
+async function saleState() {
+  const [open, stock, startsAt] = await redis.mget(KEYS.open, KEYS.stock, KEYS.startsAt);
+  const now = Date.now();
+  const start = open === "1" ? Number(startsAt ?? 0) : null;
+  return { open: start !== null && now >= start, startsAt: start, remaining: Number(stock ?? 0), now };
+}
+
+app.get("/sale/status", saleState);
 
 app.post("/checkout", async (req, reply) => {
   const userId = authUser(req);
@@ -74,8 +79,7 @@ app.post("/checkout", async (req, reply) => {
   if (hits === 1) await redis.expire(k, 10);
   if (hits > 5) return reply.code(429).send({ error: "rate_limited" });
 
-  if ((await redis.get(KEYS.open)) !== "1")
-    return reply.code(409).send({ status: "NOT_OPEN" });
+  if (!(await saleState()).open) return reply.code(409).send({ status: "NOT_OPEN" });
 
   const r = (await redis.eval(RESERVE_LUA, 2, KEYS.stock, KEYS.buyers, userId)) as number;
   if (r === -1) return reply.code(409).send({ status: "ALREADY_PURCHASED" });

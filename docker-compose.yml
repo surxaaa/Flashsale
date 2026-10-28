@@ -66,6 +66,9 @@ services:
     environment:
       CHECKOUT_RATE: ${CHECKOUT_RATE:-5r/s}
       CHECKOUT_BURST: ${CHECKOUT_BURST:-20}
+    ulimits:
+      nofile: 65535
     volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/default.conf.template:/etc/nginx/templates/default.conf.template
     depends_on: [api, web]

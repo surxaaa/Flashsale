@@ -4,7 +4,7 @@ proxy_cache_path /var/cache/nginx keys_zone=static:10m max_size=100m;
 upstream api_pool {
     least_conn;
     server api:3000;
-    keepalive 64;
+    keepalive 256;
 }
 
 upstream web_pool {
@@ -12,7 +12,7 @@ upstream web_pool {
 }
 
 server {
-    listen 80;
+    listen 80 backlog=4096;
 
     location = /api/checkout {
         limit_req zone=checkout burst=${CHECKOUT_BURST} nodelay;
@@ -21,6 +21,18 @@ server {
         proxy_set_header Connection "";
         proxy_set_header Host $host;
         proxy_pass http://api_pool/checkout;
+    }
+
+    # every open tab polls this, so let nginx answer most of them
+    location = /api/sale/status {
+        proxy_cache static;
+        proxy_cache_valid 200 1s;
+        proxy_cache_lock on;
+        proxy_cache_use_stale updating;
+        add_header X-Cache $upstream_cache_status;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_pass http://api_pool/sale/status;
     }
 
     location /api/ {

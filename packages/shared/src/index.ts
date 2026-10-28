@@ -6,6 +6,7 @@ export const KEYS = {
   stock: "sale:stock",
   buyers: "sale:buyers",
   open: "sale:open",
+  startsAt: "sale:startsAt", // epoch ms
   order: (id: string) => `order:${id}`,
 };
 
