@@ -1,0 +1,9 @@
+{
+  "name": "flash-sale",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "typecheck": "pnpm -r --if-present run typecheck"
+  }
+}

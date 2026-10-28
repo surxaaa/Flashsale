@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: flash
+      POSTGRES_PASSWORD: flash
+      POSTGRES_DB: flash
+    volumes:
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flash"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"   # management UI, guest / guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      retries: 30
+
+  api:
+    build: { context: ., args: { APP: "@flash/api" } }
+    deploy:
+      replicas: ${API_REPLICAS:-3}
+    environment:
+      REDIS_URL: redis://redis:6379
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      DATABASE_URL: postgres://flash:flash@postgres:5432/flash
+      JWT_SECRET: dev-secret-change-me
+      POW_ENABLED: ${POW_ENABLED:-true}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  worker:
+    build: { context: ., args: { APP: "@flash/worker" } }
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    environment:
+      REDIS_URL: redis://redis:6379
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672
+      DATABASE_URL: postgres://flash:flash@postgres:5432/flash
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  web:
+    build: { context: ., args: { APP: "@flash/web" } }
+
+  nginx:
+    image: nginx:1.27
+    ports:
+      - "8080:80"
+    environment:
+      CHECKOUT_RATE: ${CHECKOUT_RATE:-5r/s}
+      CHECKOUT_BURST: ${CHECKOUT_BURST:-20}
+    volumes:
+      - ./infra/nginx/default.conf.template:/etc/nginx/templates/default.conf.template
+    depends_on: [api, web]
